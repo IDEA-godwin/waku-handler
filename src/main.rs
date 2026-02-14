@@ -42,7 +42,6 @@ fn main() {
     };
     let node = waku_new(Some(config)).expect("should initiate");
 
-
     let node = node.start().expect("should start");
     println!("\n===== Node Started =====");
     println!("PeerId: {}", node.peer_id().unwrap());
@@ -89,7 +88,12 @@ fn main() {
     loop {
         println!("Start message publishing and peer monitoring loop...");
         let peers = node.peers().unwrap();
-        println!("Current peers: {:?}", peers);
+        for peer in &peers {
+            println!("Peer ID: {}, Is Connected: {:?}", peer.peer_id(), peer.connected());
+            println!("is node {}", peer.peer_id().eq(&node.peer_id().unwrap()));
+        }
+
+        thread::sleep(Duration::new(30, 0));
 
         // let inbound = node.
         // let relay_enough_peers = node.relay_enough_peers(Some("/waku/2/m3tering/proto".to_string()));
