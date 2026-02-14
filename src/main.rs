@@ -35,6 +35,7 @@ fn main() {
     let config = WakuNodeConfig {
         port: Some(tcp_port.unwrap()),
         log_level: Some(WakuLogLevel::Warn),
+        relay: Some(true),
         discv5: Some(true),
         discv5_udp_port: Some(udp_port.unwrap()),
         discv5_bootstrap_nodes: bootstrap_nodes,
@@ -49,6 +50,7 @@ fn main() {
 
     waku_set_event_callback(|signal| {
         let _event = signal.event();
+        println!("===== Received Event =====");
         println!("Received event");
     });
 
@@ -64,13 +66,13 @@ fn main() {
 
     let _ = node
         .relay_subscribe(&ContentFilter::new(
-            Some(topic),
+            Some(topic.clone()),
             vec![content_topic.clone()],
         ))
         .unwrap();
 
     let timestamp = Instant::now().elapsed().as_millis() as usize;
-    let _msg = WakuMessage::new(
+    let msg = WakuMessage::new(
         "node one was hear".as_bytes(),
         content_topic,
         1,
@@ -87,6 +89,8 @@ fn main() {
 
     loop {
         println!("Start message publishing and peer monitoring loop...");
+        // let node_info =
+        println!("peer count: {}", node.peer_count().unwrap());
         let peers = node.peers().unwrap();
         for peer in &peers {
             println!("Peer ID: {}, Is Connected: {:?}", peer.peer_id(), peer.connected());
@@ -96,13 +100,13 @@ fn main() {
         thread::sleep(Duration::new(30, 0));
 
         // let inbound = node.
-        // let relay_enough_peers = node.relay_enough_peers(Some("/waku/2/m3tering/proto".to_string()));
-        // println!("Relay has enough peers: {}", relay_enough_peers.unwrap());
+        let relay_enough_peers = node.relay_enough_peers(Some(topic.clone()));
+        println!("Relay has enough peers: {}", relay_enough_peers.unwrap());
 
-        // let msg_id = node
-        //     .relay_publish_message(&msg, None, Some(Duration::new(1000, 0)))
-        //     .expect("published message");
-        // println!("Published message with id {}", msg_id);
+        let msg_id = node
+            .relay_publish_message(&msg, Some(topic.clone()), Some(Duration::new(1000, 0)))
+            .expect("published message");
+        println!("Published message with id {}", msg_id);
 
         // line.clear();
         // match handle.read_line(&mut line) {
