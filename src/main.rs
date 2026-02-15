@@ -5,14 +5,19 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use waku_bindings::{
-    ContentFilter, Encoding, WakuLogLevel, WakuMessage, WakuNodeConfig, WakuPubSubTopic,
-    waku_create_content_topic, waku_new, waku_set_event_callback,
+    ContentFilter, Encoding, SecretKey, WakuLogLevel, WakuMessage, WakuNodeConfig, WakuPeerData,
+    WakuPubSubTopic, waku_create_content_topic, waku_new, waku_set_event_callback,
 };
 // use waku_sys::waku_relay_subscribe;
 
 // #[tokio::main]
 fn main() {
     dotenvy::dotenv().ok();
+
+    let node_key = std::env::var("WAKU_HANDLER_NODE_KEY")
+        .map(|a| hex::decode(a).unwrap())
+        .map(|a| SecretKey::from_slice(&a).unwrap())
+        .ok();
 
     let tcp_port = std::env::var("WAKU_HANDLER_PORT")
         .unwrap_or_else(|_| "60100".to_string())
@@ -33,9 +38,11 @@ fn main() {
     let _topic = WakuPubSubTopic::new();
 
     let config = WakuNodeConfig {
+        node_key,
         port: Some(tcp_port.unwrap()),
-        log_level: Some(WakuLogLevel::Warn),
+        log_level: Some(WakuLogLevel::Info),
         relay: Some(true),
+        min_peers_to_publish: Some(1),
         discv5: Some(true),
         discv5_udp_port: Some(udp_port.unwrap()),
         discv5_bootstrap_nodes: bootstrap_nodes,
@@ -62,7 +69,7 @@ fn main() {
     );
 
     let topic = WakuPubSubTopic::from("/waku/2/m3tering/proto");
-    let content_topic = waku_create_content_topic("m3tering", "0.1.0", &topic, Encoding::Proto);
+    let content_topic = waku_create_content_topic("m3tering", "1", "data-stream", Encoding::Proto);
 
     let _ = node
         .relay_subscribe(&ContentFilter::new(
@@ -71,62 +78,52 @@ fn main() {
         ))
         .unwrap();
 
-    let timestamp = Instant::now().elapsed().as_millis() as usize;
-    let msg = WakuMessage::new(
-        "node one was hear".as_bytes(),
-        content_topic,
-        1,
-        timestamp,
-        [],
-        false,
-    );
-
-    println!("Type 'q' to quit, 'p' to check peers...\n");
-
-    // let stdin = io::stdin();
-    // let mut handle = stdin.lock();
-    // let mut line = String::new();
+    // let mut counter = 0;
 
     loop {
         println!("Start message publishing and peer monitoring loop...");
         // let node_info =
         println!("peer count: {}", node.peer_count().unwrap());
         let peers = node.peers().unwrap();
-        for peer in &peers {
-            println!("Peer ID: {}, Is Connected: {:?}", peer.peer_id(), peer.connected());
-            println!("is node {}", peer.peer_id().eq(&node.peer_id().unwrap()));
+        for peer in &peers
+            .iter()
+            .filter(|a| a.connected())
+            .collect::<Vec<&WakuPeerData>>()
+        {
+            println!(
+                "Peer ID: {}, \n Protocol: {:?}",
+                peer.peer_id(),
+                peer.protocols()
+            );
+            println!(
+                "is node {}",
+                peer.peer_id()
+                    .eq(&"16Uiu2HAm6Yv8hTdXuAHZdu2gQuLn3FkVaXqibD1oTsXLDz7NfVKi")
+            );
         }
-
+        println!("Relay topics: {:?}", node.relay_topics().unwrap());
         thread::sleep(Duration::new(30, 0));
 
-        // let inbound = node.
-        let relay_enough_peers = node.relay_enough_peers(Some(topic.clone()));
-        println!("Relay has enough peers: {}", relay_enough_peers.unwrap());
+        // // let inbound = node.
+        let relay_enough_peers = node.relay_enough_peers(Some(topic.clone())).unwrap();
+        println!("Relay has enough peers: {}", relay_enough_peers);
 
-        let msg_id = node
-            .relay_publish_message(&msg, Some(topic.clone()), Some(Duration::new(1000, 0)))
-            .expect("published message");
-        println!("Published message with id {}", msg_id);
+        // if relay_enough_peers {
+        //     let timestamp = Instant::now().elapsed().as_millis() as usize;
+        //     let msg = WakuMessage::new(
+        //         format!("node one was hear {}", counter).as_bytes(),
+        //         content_topic.clone(),
+        //         1,
+        //         timestamp,
+        //         [],
+        //         false,
+        //     );
 
-        // line.clear();
-        // match handle.read_line(&mut line) {
-        //     Ok(_) => {
-        //         let cmd = line.trim();
-        //         if cmd == "q" {
-        //             break;
-        //         } else if cmd == "p" {
-        //             let peer_count = node.peer_count().unwrap_or(0);
-        //             println!("Current peer count: {}", peer_count);
-        //         } else if cmd == "l" {
-        //             println!(
-        //                 "Listening addresses: {:?}",
-        //                 node.listen_addresses().unwrap()
-        //             );
-        //         }
-        //     }
-        //     Err(e) => {
-        //         eprintln!("Error reading input: {}", e);
-        //     }
+        //     let msg_id = node
+        //         .relay_publish_message(&msg, Some(topic.clone()), Some(Duration::new(1000, 0)))
+        //         .expect("published message");
+        //     println!("Published message with id {}", msg_id);
+        //     counter += 1;
         // }
     }
 }
