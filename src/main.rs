@@ -107,7 +107,7 @@ fn main() {
         // println!("Relay topics: {:?}", node.relay_topics().unwrap());
         // let relay_enough_peers = node.relay_enough_peers(Some(topic.clone())).unwrap();
         // println!("Relay has enough peers: {}", relay_enough_peers);
-        // thread::sleep(Duration::new(30, 0));
+        thread::sleep(Duration::new(30, 0));
 
         // // let inbound = node.
         // if relay_enough_peers {
