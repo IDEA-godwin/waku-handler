@@ -5,12 +5,10 @@ RUN apt-get update && apt-get install -y \
     libssl-dev pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Go (no gvm)
-ENV GO_VERSION=1.20.5
-RUN curl -fsSL https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz \
-    | tar -C /usr/local -xz
+# Provide Go 1.20 from the official golang image (multi-arch, deterministic)
+COPY --from=golang:1.20 /usr/local/go /usr/local/go
 ENV PATH="/usr/local/go/bin:${PATH}"
-
+RUN go version
 WORKDIR /app
 
 COPY . .

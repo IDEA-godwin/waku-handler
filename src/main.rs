@@ -5,8 +5,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use waku_bindings::{
-    ContentFilter, Encoding, SecretKey, WakuLogLevel, WakuMessage, WakuNodeConfig, WakuPeerData,
-    WakuPubSubTopic, waku_create_content_topic, waku_new, waku_set_event_callback,
+    ContentFilter, Encoding, Event, SecretKey, WakuLogLevel, WakuMessage, WakuNodeConfig, WakuPeerData, WakuPubSubTopic, waku_create_content_topic, waku_new, waku_set_event_callback
 };
 // use waku_sys::waku_relay_subscribe;
 
@@ -41,8 +40,8 @@ fn main() {
         node_key,
         port: Some(tcp_port.unwrap()),
         log_level: Some(WakuLogLevel::Info),
-        relay: Some(true),
-        min_peers_to_publish: Some(1),
+        // relay: Some(true),
+        // min_peers_to_publish: Some(1),
         discv5: Some(true),
         discv5_udp_port: Some(udp_port.unwrap()),
         discv5_bootstrap_nodes: bootstrap_nodes,
@@ -53,12 +52,21 @@ fn main() {
     let node = node.start().expect("should start");
     println!("\n===== Node Started =====");
     println!("PeerId: {}", node.peer_id().unwrap());
+    
     thread::sleep(Duration::new(5, 0));
 
     waku_set_event_callback(|signal| {
-        let _event = signal.event();
+        let event = signal.event();
         println!("===== Received Event =====");
-        println!("Received event");
+        match event {
+            Event::WakuMessage(msg) => {
+                println!("Received message with content topic: {}", msg.waku_message().content_topic());
+                println!("Message payload: {:?}", msg.waku_message().payload());
+            },
+            Event::Unrecognized(msg) => println!("Received unrecognized event: {}", msg),
+            _ =>  println!("Received other event")
+        };
+        println!("==========================");
     });
 
     let peer_count = node.peer_count().unwrap();
@@ -68,7 +76,7 @@ fn main() {
         node.listen_addresses().unwrap()
     );
 
-    let topic = WakuPubSubTopic::from("/waku/2/m3tering/proto");
+    let topic = WakuPubSubTopic::from("/waku/2/default-waku/proto");
     let content_topic = waku_create_content_topic("m3tering", "1", "data-stream", Encoding::Proto);
 
     let _ = node
@@ -95,20 +103,15 @@ fn main() {
                 peer.peer_id(),
                 peer.protocols()
             );
-            println!(
-                "is node {}",
-                peer.peer_id()
-                    .eq(&"16Uiu2HAm6Yv8hTdXuAHZdu2gQuLn3FkVaXqibD1oTsXLDz7NfVKi")
-            );
         }
-        println!("Relay topics: {:?}", node.relay_topics().unwrap());
-        thread::sleep(Duration::new(30, 0));
+        // println!("Relay topics: {:?}", node.relay_topics().unwrap());
+        // let relay_enough_peers = node.relay_enough_peers(Some(topic.clone())).unwrap();
+        // println!("Relay has enough peers: {}", relay_enough_peers);
+        // thread::sleep(Duration::new(30, 0));
 
         // // let inbound = node.
-        let relay_enough_peers = node.relay_enough_peers(Some(topic.clone())).unwrap();
-        println!("Relay has enough peers: {}", relay_enough_peers);
-
         // if relay_enough_peers {
+        // println!("================ pushing message =================================");
         //     let timestamp = Instant::now().elapsed().as_millis() as usize;
         //     let msg = WakuMessage::new(
         //         format!("node one was hear {}", counter).as_bytes(),
@@ -120,7 +123,7 @@ fn main() {
         //     );
 
         //     let msg_id = node
-        //         .relay_publish_message(&msg, Some(topic.clone()), Some(Duration::new(1000, 0)))
+        //         .lightpush_publish(&msg, Some(topic.clone()), String::from("16Uiu2HAmU88qxMSeTqRnvjoZ5fkMFQ27rFQCGjh4NRiC7g4MM6UK"), Some(Duration::new(1000, 0)))
         //         .expect("published message");
         //     println!("Published message with id {}", msg_id);
         //     counter += 1;
